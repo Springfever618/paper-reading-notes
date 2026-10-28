@@ -296,6 +296,7 @@ def stream_with_fallback(J, cb, model, effort, sysp, prompt):
 
 def fail_msg(err, blob):
     if hit_limit(err + blob): return "Claude 额度用完了，稍后再试（用的是本机 Claude Code 登录的账号）。"
+    if _re.search(r"authenticat|oauth|not logged in|/login", err + blob, _re.I): return NO_LOGIN
     if err: return "Claude 出错：" + err
     if "SELF_SIGNED" in blob or "Unable to connect" in blob: return NO_NET
     if "Not logged in" in blob or "/login" in blob: return NO_LOGIN
@@ -943,5 +944,5 @@ class H(http.server.BaseHTTPRequestHandler):
 if __name__ == "__main__":
     print(f"读论文插件本机服务：http://127.0.0.1:{PORT}  数据文件夹：{DATA}")
     print("Claude Code：" + (claude_bin() or "没找到（“问 Claude”用不了，其余功能正常）"))
-    print("对照翻译：" + ("已配置" if os.environ.get("RN_TRANSLATE_API_BASE") and os.environ.get("RN_TRANSLATE_API_KEY") else "未配置（见 README）"))
+    print("对照翻译：" + ("已配置" if os.environ.get("RN_TRANSLATE_API_BASE") and os.environ.get("RN_TRANSLATE_API_KEY") else "未配置（见 README）"), flush=True)
     http.server.ThreadingHTTPServer(("127.0.0.1", PORT), H).serve_forever()

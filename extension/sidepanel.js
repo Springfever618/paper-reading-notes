@@ -70,7 +70,7 @@ function cites(t) {
 }
 let META = { items: {}, grades: {} };
 function noCardHtml(kind) {
-  return `<p class="tip">当前这篇（${esc(NOCARD)}）还没有目标卡。要读这篇的话，跟 Claude 说“给这篇出卡”。想看别的论文的卡，在上面“— 本页还没有卡 —”那个下拉框里选。</p>`;
+  return `<p class="tip">当前这篇（${esc(NOCARD)}）还没有目标卡。目标卡是可选功能，做法见 GitHub 上的 README。想看别的论文的卡，在上面“— 本页还没有卡 —”那个下拉框里选。</p>`;
 }
 async function loadCard() {
   if (NOCARD) { $("#modebar").innerHTML = ""; $("#v-method").innerHTML = ""; $("#body").innerHTML = noCardHtml("目标卡"); return; }

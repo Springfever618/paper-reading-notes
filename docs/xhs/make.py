@@ -38,10 +38,10 @@ h2{font-size:72px;line-height:1.2;font-weight:800;margin-top:28px}
 FOOT = '<div class="foot"><span>读论文 · 笔记与答题卡</span><span>开源 · 数据只存本机</span></div>'
 
 P1 = """
-<span class="tag">研究生自用 · 开源免费</span>
-<h1>读英文论文<br>我给自己做了<br><span class="mk">一个插件</span></h1>
-<p class="lead">划线做笔记 · 没看懂直接问 Claude<br>中英对照 · 划线自动排成脑图</p>
-<div class="win" style="margin-top:56px;position:relative">
+<span class="tag">免费开源 · Chrome 插件</span>
+<h1>英文论文看不懂<br>划一句，AI<br><span class="mk">结合全文讲给你</span></h1>
+<p class="lead">不是逐句翻译：它会读整篇论文，告诉你术语在哪节定义<br>划线永久保存 · 段落下出中文 · 自动生成阅读脑图</p>
+<div class="win" style="margin-top:44px;position:relative">
   <div class="bar"><i></i><i></i><i></i><span>arxiv.org/html/…</span></div>
   <div class="pp">
     <div class="sec">3 &nbsp;Method</div>

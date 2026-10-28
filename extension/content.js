@@ -775,7 +775,7 @@
     document.body.appendChild(pop);
     try { chrome.storage.local.get("rnPopSize").then(v => { const z = v.rnPopSize; if (z && pop === me) { pop.style.width = Math.min(z.w, innerWidth - 16) + "px"; pop.style.height = Math.min(z.h, innerHeight - 16) + "px"; pop.style.maxHeight = "none"; place(); } }); } catch (e) {}
     let szT = null;   // 右下角拉伸后记住大小
-    new ResizeObserver(() => { if (!pop.style.height && !pop.style.width) return; clearTimeout(szT); szT = setTimeout(() => { try { chrome.storage.local.set({ rnPopSize: { w: pop.offsetWidth, h: pop.offsetHeight } }); } catch (e) {} }, 400); }).observe(pop);
+    new ResizeObserver(() => { if (!me.isConnected || (!me.style.height && !me.style.width)) return; clearTimeout(szT); szT = setTimeout(() => { try { chrome.storage.local.set({ rnPopSize: { w: me.offsetWidth, h: me.offsetHeight } }); } catch (e) {} }, 400); }).observe(pop);
     ["l", "r", "b", "br", "bl"].forEach(k => { const h = document.createElement("div"); h.className = "rs rs-" + k; h.dataset.rs = k; pop.appendChild(h); });
     pop.addEventListener("pointerdown", ev => {   // 拖左 / 右 / 下边或角：改大小
       const h = ev.target.closest && ev.target.closest(".rs"); if (!h) return;
