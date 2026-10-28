@@ -303,7 +303,7 @@ addEventListener("message", async e => {
     reply(t && /^https?:/.test(t.url) ? { url: t.url.split("#")[0], title: t.title, secs: (r && r.secs) || {} } : { err: "这个页面不能做笔记" });
   }
   if (d.rnCanvas === "goto" && t) chrome.tabs.sendMessage(t.id, { type: "goto", id: d.id }).catch(() => {});
-  if (d.rnCanvas === "changed" && t) { tellPage(); }
+  if (d.rnCanvas === "changed" && t) { tellPage(); fetch(API + "/api/zsync_now?url=" + encodeURIComponent(t.url)).catch(() => {}); }
 });
 async function curTab() { const [t] = await chrome.tabs.query({ active: true, currentWindow: true }); return t; }
 async function post(path, body) {
@@ -347,7 +347,7 @@ async function renderNotes() {
     (tagSet.length ? `<div class="chips tags">${tagSet.map(x => `<button data-f="tag:${esc(x)}" class="${FILTER === "tag:" + x ? "on" : ""}">🏷 ${esc(x)} ${count("tag:" + x)}</button>`).join("")}</div>` : "");
   if (SCOPE === "page" && !here) html += '<p class="tip">这个页面不能做笔记（只支持普通网页）。</p>';
   else {
-    if (SCOPE === "page") html += `<div class="zline"><a id="mkmap" title="切到 ④ 画布：划线按章节排成脑图，单击卡片跳回原文，做完可上传到 Obsidian">🗺 画布</a></div>`;
+    if (SCOPE === "page") html += `<div class="zline">${here.zotero ? `已同步到 Zotero（${esc(here.zotero.time)}${here.zotero.hl ? `，PDF 上 ${here.zotero.hl} 处高亮` : ""}）· <a href="zotero://select/library/items/${esc(here.zotero.key)}">在 Zotero 里打开</a>` : "还没同步到 Zotero"} · <a id="zsync">立即同步</a> · <a id="mkmap" title="切到 ④ 画布：划线按章节排成脑图，单击卡片跳回原文，做完可上传到 Obsidian">🗺 画布</a></div>`;
     if (FILTER === "ask") html += `<div class="tip">还没弄懂的地方。可以在每条下面“🙋 问 Claude”，或者跟 Claude 说“讲讲我的待解决”。</div>`;
     const pages = src.map(p => ({ ...p, notes: p.notes.filter(n => pass(FILTER, n)) })).filter(p => p.notes.length);
     const where = SCOPE === "page" ? "这页" : "所有论文里";
@@ -359,6 +359,13 @@ async function renderNotes() {
   restoreScroll("notes");
   el.querySelectorAll(".chips button[data-f]").forEach(b => b.onclick = () => { FILTER = b.dataset.f; try { chrome.storage.local.set({ noteFilter: FILTER }); } catch (e) {} renderNotes(); });
   el.querySelectorAll(".chips button[data-s]").forEach(b => b.onclick = () => { SCOPE = b.dataset.s; try { chrome.storage.local.set({ noteScope: SCOPE }); } catch (e) {} renderNotes(); });
+  const z = $("#zsync");
+  if (z) z.onclick = async () => {
+    z.textContent = "同步中…";
+    const r = await (await fetch(API + "/api/zsync_now?url=" + encodeURIComponent(t.url))).json();
+    if (!r.zotero) z.textContent = "没同步上：Zotero 没开、没装“读论文笔记同步”插件，或 Zotero 里还没有这篇且网页上认不出 DOI";
+    else renderNotes();
+  };
   const mk = $("#mkmap");
   if (mk) mk.onclick = () => { setTabUI("canvas"); try { chrome.storage.local.set({ rnTab: TAB }); } catch (e) {} };   // 10-06：切到 ④ 画布
 }

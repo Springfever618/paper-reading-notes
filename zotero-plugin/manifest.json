@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "读论文笔记同步",
+  "version": "1.0.0",
+  "description": "把 Chrome“读论文”插件的网页笔记写进 Zotero 同一篇论文下（子笔记 + PDF 原句高亮），右键可回到网页接着读。只在本机 127.0.0.1 工作，需要本机令牌。",
+  "author": "Springfever618",
+  "applications": {
+    "zotero": {
+      "id": "rn-notes-sync@paper-reading-notes",
+      "update_url": "https://localhost.invalid/rn-notes-sync/update.json",
+      "strict_min_version": "7.0",
+      "strict_max_version": "10.*.*"
+    }
+  }
+}

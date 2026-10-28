@@ -12,6 +12,8 @@
 - **❓ 没看懂 → 问 Claude**：把原句、所在段落和论文相关片段一起发给本机的 Claude Code，回答边生成边显示，之后可以继续追问。弄懂后点“标为已解决”。
 - **🌐 对照翻译**：只翻正文段落，表格、图注、公式不翻。滚动到哪里翻到哪里，翻过的段落会缓存。
 - **🗺 阅读画布**：划线按“论文 → 章节 → 划线卡”自动排成脑图。单击卡片跳回原文对应的句子。可以拖动、连线、改颜色，一键导出为 Obsidian `.canvas` 文件。
+- **和 Zotero 联动**：网页上的划线和问答，自动写进 Zotero 同一篇论文下的一条子笔记；能在 PDF 里找到原句的，直接画成 Zotero PDF 上的高亮。论文还不在 Zotero 里时，按 DOI / arXiv 号自动建条目。Zotero 里右键“在网页上读”可以回到网页接着读。
+- **和 Obsidian 联动**：每篇论文的笔记自动生成一份 Markdown 放进 Obsidian 库；阅读画布导出成 `.canvas`，在 Obsidian 里改了会合并回来。
 - **右侧抽屉**：本页笔记、全部笔记、待解决、标签筛选，以及“今天读了几篇、各读了多久”。
 - **答题卡（可选）**：边读边答预设问题，交给 Claude 对照原文批改。
 
@@ -50,12 +52,35 @@ export RN_TRANSLATE_API_KEY="你的密钥"
 export RN_TRANSLATE_MODEL="Qwen/Qwen2.5-7B-Instruct"   # 可不设
 ```
 
+**5. 和 Zotero 联动（可选）**
+
+需要 Zotero 7 或更高版本，并保持 Zotero 开着。
+
+1. Zotero 菜单“工具 → 插件”，把 `zotero-plugin/读论文笔记同步.xpi` 拖进去安装。
+2. 先启动一次本机服务。它会生成本机令牌 `~/读论文笔记/zotero_token.txt`，Zotero 插件靠它确认请求来自本机服务。
+3. 之后在网页上划线、写笔记，会自动同步到 Zotero；抽屉“② 笔记”里能看到同步状态，也可以点“立即同步”。
+
+要在 PDF 上画高亮，还需要 `pip install pymupdf`；不装的话只同步子笔记。
+
+**6. 和 Obsidian 联动（可选）**
+
+启动服务前设置 Obsidian 库的路径：
+
+```bash
+export RN_OBSIDIAN_VAULT="$HOME/Documents/我的库"
+```
+
+每篇论文的笔记会写进库里的 `论文网页笔记/`，画布“⬆ Obsidian”按钮导出到库里这篇论文笔记所在的文件夹（找不到就放 `论文画布/`）。
+
 ## 其他设置
 
 | 环境变量 | 作用 |
 |---|---|
 | `RN_DATA` | 数据文件夹，默认 `~/读论文笔记` |
-| `RN_OBSIDIAN_VAULT` | Obsidian 库路径。设置后，画布导出到库中这篇论文笔记所在的文件夹 |
+| `RN_OBSIDIAN_VAULT` | Obsidian 库路径。设置后，笔记 md 和画布都写进库里 |
+| `RN_MD_DIR` | 笔记 md 单独指定放哪 |
+| `RN_ZOTERO=0` | 关掉 Zotero 同步 |
+| `RN_ZOTERO_DIR` | Zotero 数据文件夹，默认 `~/Zotero` |
 | `RN_ASK_PERSONA` | 给 Claude 的一句自我介绍，如“我是心理学研一学生，英文一般” |
 
 在数据文件夹里放一个 `reading_lines.json`（格式见 `server/reading_lines.example.json`），抽屉的“今天”页就会按阅读线统计每天读了几篇。

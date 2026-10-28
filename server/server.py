@@ -8,14 +8,18 @@
   RN_TRANSLATE_API_BASE   对照翻译用的 OpenAI 兼容接口，如 https://api.siliconflow.cn/v1
   RN_TRANSLATE_API_KEY    上面接口的密钥
   RN_TRANSLATE_MODEL      模型名（默认 Qwen/Qwen2.5-7B-Instruct）
-  RN_OBSIDIAN_VAULT       Obsidian 库路径（画布“上传到 Obsidian”用；不设就存到数据文件夹）
+  RN_OBSIDIAN_VAULT       Obsidian 库路径：每篇论文的笔记 md 写进库里的“论文网页笔记/”，画布导出到库里（不设就都存在数据文件夹）
+  RN_MD_DIR               笔记 md 单独指定放哪（优先于上一项）
+  RN_ZOTERO=0             关掉 Zotero 同步（默认开；Zotero 没开或没装插件时自动跳过）
+  RN_ZOTERO_DIR           Zotero 数据文件夹（默认 ~/Zotero，用来找 PDF 画高亮）
   RN_ASK_PERSONA          给 Claude 的一句自我介绍，如“我是心理学研一学生，英文一般”"""
 import datetime, glob, hashlib, http.server, json, os, re as _re, shutil, subprocess, threading, time, urllib.parse, urllib.request, uuid
 
 HOME = os.path.expanduser("~")
 DATA = os.path.expanduser(os.environ.get("RN_DATA") or os.path.join(HOME, "读论文笔记"))
 WEB = os.path.join(DATA, "web_notes")        # 网页笔记原始数据（每个网页一个 json）
-WEB_MD = os.path.join(DATA, "网页笔记")        # 同步出的 md（Obsidian 等可看）
+_VAULT = os.path.expanduser(os.environ.get("RN_OBSIDIAN_VAULT", ""))
+WEB_MD = os.path.expanduser(os.environ.get("RN_MD_DIR") or (os.path.join(_VAULT, "论文网页笔记") if _VAULT and os.path.isdir(_VAULT) else os.path.join(DATA, "网页笔记")))   # 同步出的 md：设了 Obsidian 库就直接写进库里
 PAGES = os.path.join(DATA, "pages")          # 网页全文（问 Claude 时给它上下文）
 CARDS = os.path.join(DATA, "cards")          # 答题卡（可选，见 README）
 for _d in (WEB, WEB_MD, PAGES, CARDS):
@@ -49,9 +53,13 @@ def web_load(url):
     return json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {"url": norm_url(url), "title": "", "notes": []}
 
 
-def web_save(d):
+def web_write(d):
     p = web_path(d["url"]); tmp = p + ".tmp"
     json.dump(d, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1); os.replace(tmp, p)
+
+
+def web_save(d):
+    web_write(d)
     # 同步一份 md，方便在 Obsidian 等笔记软件里看
     name = _re.sub(r'[\\/:*?"<>|#]', "", (d.get("title") or d["url"]))[:60].strip() or "untitled"
     lines = [f"# {d.get('title') or d['url']}", "", f"- 网页：{d['url']}", f"- 笔记 {len(d['notes'])} 条（由“读论文”插件自动生成）", ""]
@@ -65,6 +73,7 @@ def web_save(d):
             lines.append(f"  - 🙋 问（{x.get('time','')}）：{x['q']}")
             lines.append("  - 🤖 答：" + x["a"].replace("\n", "\n    "))
     open(os.path.join(WEB_MD, name + ".md"), "w", encoding="utf-8").write("\n".join(lines) + "\n")
+    zsync_bg(d["url"])
 
 
 STY_C = ("yellow", "green", "blue", "red", "pink", "purple", "orange")
@@ -340,6 +349,257 @@ def new_job(body, target, args, extra=None):
     JOBS[jid] = dict({"text": "", "done": False, "err": None, "qa": None, "t0": time.time(), "model": model, "effort": effort, "ctx": ctx_mode(body)}, **(extra or {}))
     threading.Thread(target=target, args=(jid,) + args + (model, effort, ctx_mode(body)), daemon=True).start()
     return jid
+
+
+# ---------- 同步到 Zotero（可选：Zotero 里装 zotero-plugin/读论文笔记同步.xpi；没开 Zotero 就安静跳过）----------
+# 网页笔记 → Zotero 同一篇论文下的一条子笔记；能在 PDF 里找到英文原句的划线，画成 PDF 上的高亮（需要 pymupdf）。
+import html as _html, secrets
+ZOTERO_ON = os.environ.get("RN_ZOTERO", "1") != "0"
+ZOTERO_DIR = os.path.expanduser(os.environ.get("RN_ZOTERO_DIR") or "~/Zotero")
+ZTOKEN = os.path.expanduser(os.environ.get("RN_ZOTERO_TOKEN_FILE") or "~/读论文笔记/zotero_token.txt")   # Zotero 插件固定读这个位置
+if not os.path.exists(ZTOKEN):
+    os.makedirs(os.path.dirname(ZTOKEN), exist_ok=True)
+    open(ZTOKEN, "w").write(secrets.token_hex(16)); os.chmod(ZTOKEN, 0o600)
+ZLOCK = threading.Lock()
+ZCOL = {"yellow": "#ffd400", "red": "#ff6666", "green": "#5fb236", "blue": "#2ea8e5", "purple": "#a28ae5", "pink": "#e56eee", "orange": "#f19837"}
+
+
+def zpost(path, body):
+    body = dict(body, token=open(ZTOKEN).read().strip())
+    req = urllib.request.Request("http://127.0.0.1:23119" + path, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+    with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=8) as r:
+        return json.loads(r.read().decode())
+
+
+def zkind(n):
+    if n.get("color") == "q":
+        return "solved" if n.get("solved") else "ask"
+    return "note"
+
+
+def zhtml(d, marker):
+    e = lambda x: _html.escape(str(x or ""))
+    tag = lambda n: {"y": "🟨 重要", "g": "🟩 和我有关", "n": "📝 笔记",
+                     "q": "✅ 已解决（原 ❓ 没看懂）" if n.get("solved") else "❓ 没看懂（待解决）"}.get(n.get("color"), "📝")
+    out = [f"<h1><a href=\"{e(d['url'])}\">▶ 在网页上继续读（自动显示我的笔记）</a></h1>",
+           "<h2>📝 网页笔记（读论文插件自动同步）</h2>",
+           f"<p>来源网页：<a href=\"{e(d['url'])}\">{e(d.get('title') or d['url'])}</a><br>"
+           f"同步编号 {marker} · 最后同步 {time.strftime('%Y-%m-%d %H:%M')}<br>"
+           "<i>这条由插件自动更新，在这里改会被覆盖；要改请回网页上改。</i></p>"]
+    for n in d["notes"]:
+        link = d["url"] + "#:~:text=" + urllib.parse.quote(n.get("quote", "")[:80])
+        tg = "".join(" · 🏷 " + e(t) for t in n.get("tags", []))
+        out.append(f"<hr><p><b>{e(tag(n))}</b>{tg} · {e(n.get('time'))} · <a href=\"{e(link)}\">↗ 回到网页原处</a></p>")
+        out.append(f"<blockquote>{e(n.get('quote'))}</blockquote>")
+        if n.get("note"): out.append(f"<p>💬 {e(n['note'])}</p>")
+        for x in n.get("qa", []):
+            out.append(f"<p><b>🙋 问：</b>{e(x['q'])}</p><p><b>🤖 Claude（{e(x.get('model', 'Sonnet'))}）：</b>{e(x['a']).replace(chr(10), '<br>')}</p>")
+    return "\n".join(out)
+
+
+def zcomment(n):
+    """PDF 高亮的批注文字：类型 · 标签 · 问答次数；然后备注；然后和 Claude 的对话。"""
+    lab = {"ask": "❓ 没看懂 · 待解决", "solved": "✅ 已解决", "note": "📝 笔记"}[zkind(n)]
+    qa = n.get("qa", [])
+    out = [lab + "".join(" · 🏷 " + t for t in n.get("tags", [])) + (f" · 💬 {len(qa)} 次问答" if qa else "") + (f" · {n['time'][:11]}" if n.get("time") else "")]
+    if n.get("note"): out += ["", n["note"]]
+    if qa:
+        out += ["", "── 和 Claude 的对话 ──"]
+        for x in qa:
+            a = x["a"] if len(x["a"]) < 900 else x["a"][:900] + "……（全文见子笔记“📝 网页笔记”）"
+            out += ["🙋 " + x["q"], "🤖 " + a, ""]
+    out.append("（网页笔记同步 · 在网页上改，这里自动更新）")
+    return "\n".join(out)
+
+
+def paras_load(url):
+    p = page_path(url)[:-4] + ".paras.en.json"
+    return json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {}
+
+
+def _sents_en(t):
+    return [x.strip() for x in _re.split(r"(?<=[.!?])\s+(?=[A-Z0-9“\"(\[])", " ".join(t.split())) if x.strip()]
+
+
+def _sents_zh(t):
+    return [x.strip() for x in _re.split(r"(?<=[。！？；])", " ".join(t.split())) if x.strip()]
+
+
+def align_en(n, url):
+    """开着网页翻译划的线：同一段的“中文译文 ↔ 英文原文”按句子对齐，找出对应的英文句子；半句 / 一个词时不猜。"""
+    pid = (n.get("anchor") or {}).get("id")
+    para = paras_load(url).get(pid or "")
+    q = " ".join(str(n.get("quote", "")).split())
+    zh = " ".join(str(n.get("actx") or n.get("ctx") or "").split())
+    if not para or not zh or not q: return None, para
+    zs, es = _sents_zh(zh), _sents_en(para)
+    if not zs or not es: return None, para
+    hit = [i for i, x in enumerate(zs) if (q[:12] in x) or (x[:12] in q and len(x) >= 6) or (len(q) <= 12 and q in x)]
+    if not hit: return None, para
+    i0, i1 = min(hit), max(hit)
+    if len(zs) == len(es):
+        return " ".join(es[i] for i in range(i0, i1 + 1)), para
+    covered = sum(len(zs[i]) for i in range(i0, i1 + 1))
+    if len(q) < 0.6 * covered: return None, para
+    Lz = [len(x) for x in zs]; Le = [len(x) for x in es]; Tz, Te = sum(Lz), sum(Le)
+    f0, f1 = sum(Lz[:i0]) / Tz, sum(Lz[:i1 + 1]) / Tz
+    pick = [j for j in range(len(es)) if f0 - 0.02 <= (sum(Le[:j]) + Le[j] / 2) / Te <= f1 + 0.02]
+    return (" ".join(es[j] for j in pick), para) if pick else (None, para)
+
+
+def en_text(n):
+    """这条笔记的英文原句：有 en 用 en；原句本身基本是英文就用原句。"""
+    if n.get("en"):
+        return n["en"]
+    q = n.get("quote", "")
+    return q if q and sum(c.isascii() for c in q) / len(q) > 0.85 else ""
+
+
+def zsync_ann(d, item):
+    """把能在 PDF 里找到英文原句的笔记，画成 Zotero PDF 上的高亮；对不上的宁可不画。"""
+    try:
+        import pdf_locate
+    except Exception:   # 没装 pymupdf：只同步子笔记
+        return d.get("zann", {})
+    pdf = None
+    for att in item.get("pdf") or []:
+        g = glob.glob(os.path.join(ZOTERO_DIR, "storage", att, "*.pdf"))
+        if g: pdf = (att, g[0]); break
+    state = d.get("zann", {})
+    ids = {n["id"] for n in d["notes"]}
+    need_ico = {n["id"] + "#ico" for n in d["notes"] if zkind(n) != "note" or n.get("note") or n.get("qa")}
+    for nid in [k for k in state if (k not in ids and k not in need_ico)]:   # 网页上删了 → 删高亮
+        try:
+            if zpost("/rn/deleteAnn", {"annKey": state[nid]["key"]}).get("ok"): state.pop(nid)
+        except Exception: pass
+    if not pdf:
+        return state
+    paras = paras_load(d["url"])
+    for n in d["notes"]:
+        txt = en_text(n)
+        para = paras.get((n.get("anchor") or {}).get("id") or "")
+        if not txt:
+            txt, para = align_en(n, d["url"])
+            if txt: n["en"], n["en_src"] = txt, "align"
+        loc = pdf_locate.locate(pdf[1], txt, para) if txt else None
+        if not loc:   # 对不上：之前画过的删掉
+            for k in (n["id"], n["id"] + "#ico"):
+                st = state.pop(k, None)
+                if st:
+                    try: zpost("/rn/deleteAnn", {"annKey": st["key"]})
+                    except Exception: pass
+            continue
+        c = (n.get("sty") or {}).get("c") or {"y": "yellow", "g": "green", "n": "blue", "q": "orange"}.get(n.get("color"), "yellow")
+        if n.get("color") == "q" and n.get("solved"): c = "green"
+        typ = "underline" if (n.get("sty") or {}).get("t") in ("ul", "wave") else "highlight"
+        body = {"attKey": pdf[0], "type": typ, "text": loc["matched"] if not loc["exact"] else txt, "comment": zcomment(n), "color": ZCOL.get(c, "#ffd400"),
+                "pageIndex": loc["pageIndex"], "rects": loc["rects"], "sortIndex": loc["sortIndex"]}
+        ik = n["id"] + "#ico"
+        if ik in need_ico:   # 句子旁边放一个便签图标（❓ 橙 / ✅ 绿 / 写了评论或问过 Claude 的 蓝），点开是完整内容
+            lx, lb, lt = loc.get("lineStart") or [loc["rects"][0][0], loc["rects"][0][1], loc["rects"][0][3]]
+            yc = (lb + lt) / 2
+            ib = {"attKey": pdf[0], "type": "note", "comment": zcomment(n), "color": {"ask": "#f19837", "solved": "#5fb236"}.get(zkind(n), "#2ea8e5"),
+                  "pageIndex": loc["pageIndex"], "rects": [[round(lx - 12, 3), round(yc - 5, 3), round(lx - 2, 3), round(yc + 5, 3)]], "sortIndex": loc["sortIndex"]}
+            isig = hashlib.sha1(json.dumps(ib, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
+            ist = state.get(ik)
+            if not (ist and ist.get("sig") == isig and ist.get("att") == pdf[0]):
+                try:
+                    r = zpost("/rn/upsertAnn", dict(ib, annKey=ist and ist.get("key")))
+                    if r.get("ok"): state[ik] = {"key": r["annKey"], "sig": isig, "att": pdf[0]}
+                except Exception: pass
+        sig = hashlib.sha1(json.dumps(body, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
+        st = state.get(n["id"])
+        if st and st.get("sig") == sig and st.get("att") == pdf[0]: continue
+        try:
+            r = zpost("/rn/upsertAnn", dict(body, annKey=st and st.get("key")))
+            if r.get("ok"): state[n["id"]] = {"key": r["annKey"], "sig": sig, "att": pdf[0]}
+        except Exception: pass
+    return state
+
+
+def zauto_create(meta, d):
+    """这篇还不在 Zotero：按 DOI（CrossRef）/ arXiv 号查到题录，经 Zotero 自带的连接器新建条目（放“我的文库”根目录）。"""
+    try:
+        doi, ax = (meta.get("doi") or "").strip(), (meta.get("arxiv") or "").strip()
+        if doi:
+            m = json.loads(urllib.request.urlopen("https://api.crossref.org/works/" + urllib.parse.quote(doi), timeout=20).read().decode())["message"]
+            dp = ((m.get("issued") or {}).get("date-parts") or [[None]])[0]
+            typ = {"journal-article": "journalArticle", "proceedings-article": "conferencePaper", "book": "book", "book-chapter": "bookSection",
+                   "posted-content": "preprint"}.get(m.get("type"), "journalArticle")
+            it = {"itemType": typ, "title": _html.unescape((m.get("title") or [""])[0]), "DOI": doi, "url": d["url"],
+                  "creators": [{"firstName": a.get("given", ""), "lastName": a.get("family") or a.get("name", ""), "creatorType": "author"} for a in m.get("author", [])],
+                  "date": "-".join(str(x) for x in dp if x), "volume": m.get("volume", ""), "issue": m.get("issue", ""), "pages": m.get("page", ""),
+                  "publisher": m.get("publisher", ""), "libraryCatalog": "CrossRef"}
+            it[{"conferencePaper": "proceedingsTitle", "bookSection": "bookTitle", "preprint": "repository"}.get(typ, "publicationTitle")] = _html.unescape((m.get("container-title") or [""])[0])
+        elif ax:
+            t = urllib.request.urlopen("https://export.arxiv.org/api/query?id_list=" + ax, timeout=20).read().decode()
+            ent = t.split("<entry>", 1)[1] if "<entry>" in t else ""
+            g = lambda tag: _html.unescape(" ".join((_re.search(rf"<{tag}>(.*?)</{tag}>", ent, _re.S) or [None, ""])[1].split()))
+            if not g("title"): return None
+            names = [" ".join(n.split()) for n in _re.findall(r"<name>(.*?)</name>", ent, _re.S)]
+            it = {"itemType": "preprint", "title": g("title"), "repository": "arXiv", "archiveID": "arXiv:" + ax, "url": "https://arxiv.org/abs/" + ax,
+                  "date": g("published")[:10], "abstractNote": g("summary"), "DOI": "10.48550/arXiv." + ax, "libraryCatalog": "arXiv.org",
+                  "creators": [{"firstName": " ".join(n.split()[:-1]), "lastName": n.split()[-1], "creatorType": "author"} for n in names if n]}
+        else:
+            return None
+        att = [{"title": "Full Text PDF", "url": "https://arxiv.org/pdf/" + ax, "mimeType": "application/pdf"}] if ax and not doi else []   # arXiv：顺便挂上 PDF（Zotero 自己下载）
+        it.update({"tags": [{"tag": "读论文插件添加"}], "attachments": att, "notes": []})
+        sid = "rn-auto-" + uuid.uuid4().hex[:10]
+        req = urllib.request.Request("http://127.0.0.1:23119/connector/saveItems", data=json.dumps({"sessionID": sid, "uri": d["url"], "items": [it]}).encode(),
+                                     headers={"Content-Type": "application/json"})
+        urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=20).read()
+        time.sleep(8 if att else 1)
+        return (zpost("/rn/find", {"doi": meta.get("doi"), "arxiv": meta.get("arxiv"), "title": it["title"]}).get("items") or [None])[0]
+    except Exception:
+        return None
+
+
+def zsync(url):
+    """网页笔记 → Zotero 同一篇论文下的一条子笔记 + PDF 高亮。Zotero 没开或没装插件就安静跳过。"""
+    try:
+        d = web_load(url)
+        if not d["notes"]:
+            return
+        meta = dict(d.get("meta", {}))
+        if not meta.get("arxiv"):   # 没记论文编号：从网址里认 arXiv 号
+            m = _re.search(r"arxiv\.org/(?:abs|html|pdf)/(\d{4}\.\d{4,5})", d["url"])
+            if m: meta["arxiv"] = m.group(1)
+        key = (d.get("zotero") or {}).get("key")
+        title = meta.get("ctitle") or d.get("title") or ""
+        items = []
+        for t in dict.fromkeys([title, title.replace("：", ":"), title.replace(":", "：")]):
+            items = zpost("/rn/find", {"doi": meta.get("doi"), "arxiv": meta.get("arxiv"), "url": d["url"], "title": t}).get("items") or []
+            if items: break
+        item = next((i for i in items if i["key"] == key), items[0] if items else None)
+        if not item and (meta.get("doi") or meta.get("arxiv")) and not d.get("zauto"):   # 不在 Zotero：自动建条目（只试一次）
+            item = zauto_create(meta, d)
+            with LOCK:
+                d2 = web_load(url); d2["zauto"] = {"time": time.strftime("%m-%d %H:%M"), "ok": bool(item)}; web_write(d2)
+            d = web_load(url)
+        if not item:
+            return
+        marker = "rn-" + hashlib.sha1(d["url"].encode()).hexdigest()[:12]
+        r = zpost("/rn/upsertNote", {"key": item["key"], "marker": marker, "html": zhtml(d, marker)})
+        if r.get("ok"):
+            zann = zsync_ann(d, item)
+            en_new = {n["id"]: (n.get("en"), n.get("en_src")) for n in d["notes"] if n.get("en_src") == "align"}
+            with LOCK:
+                d = web_load(url)
+                d["zotero"] = {"key": item["key"], "noteKey": r["noteKey"], "time": time.strftime("%m-%d %H:%M"), "hl": len(zann), "pdf": (item.get("pdf") or [None])[0]}
+                for n in d["notes"]:
+                    if n["id"] in en_new: n["en"], n["en_src"] = en_new[n["id"]]
+                d["zann"] = zann
+                web_write(d)
+    except Exception:
+        pass
+
+
+def zsync_bg(url):
+    if not ZOTERO_ON: return
+    def run():
+        with ZLOCK:
+            zsync(url)
+    threading.Thread(target=run, daemon=True).start()
 
 
 # ---------- 答题卡（可选）：cards/ 里放 md，每道题下面一行“答：”；cards/.答案位置/ 放每题在原文的位置和参考答案 ----------
@@ -774,6 +1034,19 @@ class H(http.server.BaseHTTPRequestHandler):
                 return self._json(200, {"tags": sorted(cnt.items(), key=lambda kv: -kv[1])})
             pages.sort(key=lambda d: max(n.get("time", "") for n in d["notes"]), reverse=True)
             return self._json(200, {"pages": pages})
+        if u.path == "/api/zsync_now":   # 抽屉里“立即同步到 Zotero”
+            url = q("url")
+            with ZLOCK:
+                zsync(url)
+            return self._json(200, {"ok": True, "zotero": web_load(url).get("zotero")})
+        if u.path == "/api/weburl":   # Zotero 右键“在网页上读”：这篇在哪个网页做过笔记
+            for f in os.listdir(WEB):
+                if f.endswith(".json"):
+                    try:
+                        d = json.load(open(os.path.join(WEB, f), encoding="utf-8"))
+                        if (d.get("zotero") or {}).get("key") == q("key"): return self._json(200, {"url": d["url"]})
+                    except Exception: pass
+            return self._json(200, {"url": None})
         if u.path == "/api/cards":
             return self._json(200, {"cards": sorted(f[:-3] for f in os.listdir(CARDS) if f.endswith(".md") and f != "README.md")})
         if u.path == "/api/card":
@@ -831,6 +1104,9 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path == "/api/pagetext":
             url = str(body.get("url", ""))
             if url.startswith("http"): page_save(url, body.get("text", ""))
+            if url.startswith("http") and isinstance(body.get("paras"), dict) and body["paras"]:   # 英文段落：开着翻译划的线，同步 Zotero 时对齐英文原句用
+                json.dump({str(k)[:120]: str(v)[:4000] for k, v in list(body["paras"].items())[:3000]},
+                          open(page_path(url)[:-4] + ".paras.en.json", "w", encoding="utf-8"), ensure_ascii=False)
             return self._json(200, {"ok": True})
         if u.path == "/api/ask_start":
             if body.get("page"): page_save(str(body.get("url", "")), body.get("page"))
@@ -944,5 +1220,6 @@ class H(http.server.BaseHTTPRequestHandler):
 if __name__ == "__main__":
     print(f"读论文插件本机服务：http://127.0.0.1:{PORT}  数据文件夹：{DATA}")
     print("Claude Code：" + (claude_bin() or "没找到（“问 Claude”用不了，其余功能正常）"))
+    print("笔记 md：" + WEB_MD)
     print("对照翻译：" + ("已配置" if os.environ.get("RN_TRANSLATE_API_BASE") and os.environ.get("RN_TRANSLATE_API_KEY") else "未配置（见 README）"), flush=True)
     http.server.ThreadingHTTPServer(("127.0.0.1", PORT), H).serve_forever()
