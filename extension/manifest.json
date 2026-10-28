@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "读论文 · 笔记与答题卡",
+  "version": "1.13.4",
+  "description": "在任何网页上划线、写笔记、收藏，下次打开同一网页自动显示；右侧答题卡边读边填。所有数据只存在本机（127.0.0.1:8765 → 本地 server 的数据文件夹）。",
+  "permissions": [
+    "sidePanel",
+    "contextMenus",
+    "activeTab",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:8765/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "开 / 关笔记抽屉"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "sidepanel.html",
+        "sidepanel.js",
+        "canvas.html",
+        "canvas.js"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ]
+}

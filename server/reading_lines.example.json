@@ -1,0 +1,8 @@
+[
+  {"id": "a", "short": "方法论", "papers": [
+    {"t": "Attention Is All You Need", "id": "1706.03762", "kind": "精读"}
+  ]},
+  {"id": "b", "short": "领域综述", "papers": [
+    {"t": "A Survey of Large Language Models", "id": "2303.18223", "kind": "速扫"}
+  ]}
+]

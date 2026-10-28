@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>阅读画布</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1f2328;--ink2:#6b7280;--line:#d8dce3;--acc:#3b6fd8;--grid:#e6e8ec}
+@media (prefers-color-scheme:dark){:root{--bg:#16181d;--card:#22252c;--ink:#e6e8ec;--ink2:#9aa1ad;--line:#3a3f49;--acc:#7aa2f7;--grid:#20232a}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:13px/1.55 -apple-system,"PingFang SC",sans-serif;overflow:hidden}
+#bar{position:absolute;top:0;left:0;right:0;min-height:38px;display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:4px 8px;background:var(--card);border-bottom:1px solid var(--line);z-index:5}
+#bar button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:7px;padding:3px 9px;cursor:pointer;font:inherit;white-space:nowrap}
+#bar button:hover{border-color:var(--acc)}
+#bar button.main{background:var(--acc);color:#fff;border-color:var(--acc)}
+#bar .sp{flex:1}
+#msg{color:var(--ink2);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+#colors{display:none;gap:4px;align-items:center}
+#colors.on{display:flex}
+#colors i{width:16px;height:16px;border-radius:50%;cursor:pointer;border:2px solid transparent}
+#colors i:hover{border-color:var(--ink)}
+#view{position:absolute;top:38px;left:0;right:0;bottom:0;overflow:hidden;cursor:grab;
+  background-image:radial-gradient(var(--grid) 1px,transparent 1px);background-size:22px 22px}
+#view.pan{cursor:grabbing}
+#stage{position:absolute;left:0;top:0;transform-origin:0 0}
+svg#edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+svg#edges path{fill:none;stroke:var(--ink2);stroke-width:2;pointer-events:none}
+svg#edges path.hit{stroke:transparent;stroke-width:16;pointer-events:stroke;cursor:pointer}
+svg#edges path.vis.sel{stroke:var(--acc)}
+/* 10-06：线上的字：框跟着线走（虚线就是虚线框，粗细、颜色一样） */
+.elabel{position:absolute;transform:translate(-50%,-50%);z-index:1;background:var(--card);color:var(--ink);border-radius:7px;padding:2px 9px;font-size:calc(var(--fs,13px) - 1px);line-height:1.45;white-space:pre-wrap;width:max-content;max-width:240px;text-align:center;cursor:pointer;user-select:none}
+.elabel.sel{box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 35%,transparent)}
+.elabel.editing{min-width:60px;outline:none;cursor:text;user-select:text;box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 45%,transparent)}
+.elabel.editing:empty:before{content:"写点什么…";color:var(--ink2)}
+#ctl button.on{background:var(--acc);color:#fff}
+svg#edges path.tmp{stroke:var(--acc);stroke-dasharray:6 4}
+.node{font-size:var(--fs,13px)}
+.node .bd small{font-size:calc(var(--fs,13px) - 1.5px)!important}
+.node .bd h3{font-size:calc(var(--fs,13px) + 2px)!important}
+/* 10-06：四条边单独拉宽 / 拉高，四个角按比例缩放；双击边或角＝恢复自动高度 */
+.node .rz{position:absolute;z-index:2}
+.node .rz[data-d=e]{right:-4px;top:8px;bottom:8px;width:8px;cursor:ew-resize}
+.node .rz[data-d=w]{left:-4px;top:8px;bottom:8px;width:8px;cursor:ew-resize}
+.node .rz[data-d=s]{bottom:-4px;left:8px;right:8px;height:8px;cursor:ns-resize}
+.node .rz[data-d=n]{top:-4px;left:8px;right:8px;height:8px;cursor:ns-resize}
+.node .rz.c{width:12px;height:12px;border-radius:50%;background:var(--card);border:2px solid var(--acc);opacity:0}
+.node .rz[data-d=nw]{left:-7px;top:-7px;cursor:nwse-resize}.node .rz[data-d=se]{right:-7px;bottom:-7px;cursor:nwse-resize}
+.node .rz[data-d=ne]{right:-7px;top:-7px;cursor:nesw-resize}.node .rz[data-d=sw]{left:-7px;bottom:-7px;cursor:nesw-resize}
+.node:hover .rz.c,.node.sel .rz.c{opacity:1}
+.node.fixh{display:flex;flex-direction:column}
+.node.fixh .bd{flex:1;min-height:0;overflow:auto}
+#bar .grp{display:flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:7px;padding:0 2px}
+#bar .grp button{border:0;padding:2px 6px}
+#bar .grp span{font-size:11.5px;color:var(--ink2);min-width:34px;text-align:center}
+.node{position:absolute;background:var(--card);border:2px solid var(--line);border-radius:10px;box-shadow:0 1px 4px #0001;cursor:pointer;user-select:none;min-height:40px}
+.node.sel{outline:3px solid var(--acc);outline-offset:2px}
+.node .hd{padding:6px 10px;font-weight:650;border-radius:8px 8px 0 0;color:#fff}
+.node .bd{padding:8px 10px;word-break:break-word}
+.node .bd blockquote{margin:0 0 6px;padding-left:8px;border-left:3px solid var(--line)}
+.node .bd small{display:block;color:var(--ink2);font-size:11.5px;margin:4px 0}
+.node .bd h2,.node .bd h3{margin:0 0 4px;font-size:15px}
+.node .bd p{margin:4px 0}
+.node .go{float:right;font-size:11px;color:var(--ink2)}
+.node .star{cursor:pointer;margin-right:6px;font-size:15px;color:rgba(255,255,255,.75)}
+.node .star.on{color:#ffd400;text-shadow:0 0 2px rgba(0,0,0,.4)}
+#staronly.on{background:#ffd400;color:#3b3000;border-color:#e0b800}
+.node .bd img{display:block;max-width:100%;border-radius:6px;margin:2px 0;pointer-events:none}
+.node .hdl{position:absolute;z-index:3;right:-8px;top:50%;width:14px;height:14px;margin-top:-7px;border-radius:50%;background:var(--acc);border:2px solid var(--card);cursor:crosshair;opacity:0}
+.node:hover .hdl,.node.sel .hdl{opacity:1}
+.node textarea{width:100%;min-height:120px;border:0;outline:0;resize:vertical;background:transparent;color:var(--ink);font:inherit;padding:8px 10px}
+#ctl{position:absolute;z-index:6;display:none;gap:2px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px;box-shadow:0 3px 12px #0003}
+#ctl.on{display:flex}
+#ctl button{border:0;background:none;color:var(--ink);border-radius:6px;padding:3px 7px;cursor:pointer;font:12.5px -apple-system,"PingFang SC",sans-serif;white-space:nowrap}
+#ctl button:hover{background:var(--grid)}
+#ctl button.del:hover{background:#e9314722;color:#e93147}
+#ctl i{width:14px;height:14px;border-radius:50%;cursor:pointer;display:inline-block;margin:0 1px}
+#ctl .sep{width:1px;height:16px;background:var(--line);margin:0 3px}
+.tip{position:absolute;bottom:8px;left:8px;color:var(--ink2);font-size:11.5px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:3px 8px;z-index:4;max-width:calc(100% - 16px)}
+.tip .full{display:none}.tip:hover .full{display:inline}.tip:hover .q{display:none}
+</style>
+</head>
+<body>
+<div id="bar">
+  <button id="sync" title="新划的线会自动出现；万一没出现，点这里手动同步">🔄</button>
+  <button id="add" title="加一张自己的卡片（也可以双击空白处）">＋ 卡片</button>
+  <button id="fit" title="把所有卡片缩放到窗口里">⤢ 全部</button>
+  <button id="staronly" title="只显示标了星的卡片（再点一次显示全部）">☆ 只看星标</button>
+  <span class="grp" title="画布缩放（也可以按住 ⌘ 滚轮）"><button id="zo">－</button><span id="zv">100%</span><button id="zi">＋</button></span>
+  <span class="grp" title="卡片文字大小"><button id="fo">A−</button><span id="fv">13</span><button id="fi">A＋</button></span>
+  <span class="sp"></span><span id="msg"></span>
+  <button id="up" class="main" title="写进 Obsidian：这篇论文笔记所在的文件夹（在 server 里用 RN_OBSIDIAN_VAULT 指定库；没设就存到数据文件夹）">⬆ Obsidian</button>
+</div>
+<div id="view"><div id="stage"><svg id="edges"></svg></div><div id="ctl"></div></div>
+<div class="tip"><span class="q">❔ 怎么用</span><span class="full">单击卡片＝跳到原文，并出现操作条（补充笔记 / 编辑 / 删除 / 颜色）· 拖卡片＝移动 · 拖卡片左右边＝调宽度、上下边＝调高度、四个角＝按比例缩放（按住 Shift 自由缩放），双击边或角＝恢复自动高度 · 拖卡片右边的蓝点到另一张＝连线，拖到空白处＝新建一张连上的卡片 · ⌘V 贴图片（选着卡片时自动连上），也可以把图片拖进来 · 拖卡片回原来那一列＝调顺序，自动重排 · 双击＝改字 / 空白处双击＝新卡片 · 选中后按 Delete 删除 · 鼠标滚轮＝缩放，触控板两指滑＝平移、捏合＝缩放，Shift+滚轮＝左右移 · 点一下连线＝选中（删除 / 粗细 / 实线虚线 / 颜色 / 加字），双击连线＝在线上写字</span></div>
+<script src="canvas.js"></script>
+</body>
+</html>

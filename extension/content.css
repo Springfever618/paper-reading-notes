@@ -1,0 +1,256 @@
+/* 读论文插件：网页上的界面。白天 / 黑夜两套颜色，rn-dark = 黑夜 */
+mark.rn-hl{border-radius:2px;cursor:pointer;color:inherit;padding:0}
+mark.rn-hl[data-approx]{outline:1px dashed rgba(120,120,120,.6);outline-offset:1px}
+
+/* 小圆标 */
+.rn-ico{all:initial;display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:#3b6fd8;color:#fff;font:bold 10px/1 -apple-system,sans-serif;vertical-align:super;margin:0 2px;cursor:pointer;user-select:none;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.rn-ico.ask{background:#ee7d1c;width:24px;height:24px;font:900 15px/1 -apple-system,sans-serif;vertical-align:middle;box-shadow:0 0 0 3px rgba(238,125,28,.28),0 2px 6px rgba(0,0,0,.25)}
+.rn-ico.solved{background:#3a9b62;width:22px;height:22px;font:900 13px/1 -apple-system,sans-serif;vertical-align:middle}.rn-ico.star{background:#8e5cd9}
+.rn-ico:hover{transform:scale(1.25)}
+
+/* 公共：颜色变量 */
+#rn-bar,#rn-pop,#rn-tip,#rn-toast,#rn-rail{
+  --bg:#ffffff;--bg2:#f5f6f8;--bg3:#eceef2;--ink:#16191d;--ink2:#4b5260;--mut:#8a909c;--line:#e3e6ea;--acc:#3b6fd8;--acc-bg:#e8effd;--shadow:0 12px 36px rgba(0,0,0,.18);
+}
+#rn-bar.rn-dark,#rn-pop.rn-dark,#rn-tip.rn-dark,#rn-toast.rn-dark,#rn-rail.rn-dark{
+  --bg:#1f2227;--bg2:#272b31;--bg3:#30353c;--ink:#eef0f3;--ink2:#b9bfc8;--mut:#858c97;--line:#353a42;--acc:#6b9bff;--acc-bg:#24324d;--shadow:0 12px 36px rgba(0,0,0,.5);
+}
+#rn-bar,#rn-pop,#rn-tip,#rn-toast{all:initial;position:fixed;z-index:2147483647;box-sizing:border-box;font:13px/1.5 -apple-system,"PingFang SC",sans-serif;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+#rn-bar button,#rn-pop button{all:initial;cursor:pointer;padding:4px 9px;border-radius:7px;font:13px/1.4 -apple-system,"PingFang SC",sans-serif;color:var(--ink)}
+#rn-bar button:hover,#rn-pop button:hover{background:var(--bg3)}
+
+/* 选中文字后的小条 */
+#rn-bar{display:block;padding:5px 6px}
+#rn-bar .v{all:initial;padding:0 6px 0 3px;font:10px/1 -apple-system,sans-serif;color:var(--mut)}
+
+/* 编辑框：标题 → 原文 → 对话 → 备注 → 状态 → 按钮 */
+#rn-pop{display:flex;flex-direction:column;width:400px;max-height:88vh;overflow:hidden;padding:0}
+#rn-pop>*{flex:none}
+#rn-pop .hd{all:initial;display:flex;align-items:center;gap:4px;padding:8px 8px 6px 14px;border-bottom:1px solid var(--line);background:var(--bg);z-index:2}
+#rn-pop .hd .kind{all:initial;flex:none;font:600 13.5px/1.4 -apple-system,"PingFang SC",sans-serif;color:var(--ink)}
+#rn-pop .hd .tm{all:initial;flex:1;padding-left:8px;font:11.5px -apple-system,sans-serif;color:var(--mut)}
+#rn-pop .hd button{padding:3px 7px;color:var(--mut)}
+#rn-pop .q{all:initial;display:block;margin:10px 14px 4px;padding:8px 10px;border-left:3px solid var(--acc);background:var(--bg2);border-radius:0 8px 8px 0;font:12.5px/1.6 -apple-system,"PingFang SC",sans-serif;color:var(--ink2);max-height:96px;overflow:auto;overscroll-behavior:contain}
+#rn-pop .sec{all:initial;display:block;margin:12px 14px 5px;font:600 11.5px/1.3 -apple-system,"PingFang SC",sans-serif;color:var(--mut);letter-spacing:.5px}
+#rn-pop .sty{all:initial;display:block;margin:8px 14px 0;padding:8px 10px;border-radius:10px;background:var(--bg2)}
+#rn-pop .sty[hidden]{display:none}
+#rn-pop .sty .r{all:initial;display:flex;align-items:center;gap:3px;margin:3px 0}
+#rn-pop .sty .lab{all:initial;width:32px;font:12px/1.4 -apple-system,"PingFang SC",sans-serif;color:var(--mut)}
+#rn-pop .sty button{padding:2px 8px;font-size:12px;border:1px solid var(--line);background:var(--bg)}
+#rn-pop .sty button.on{background:var(--acc-bg);border-color:var(--acc);color:var(--acc)}
+#rn-pop .sty button.sw{width:18px;height:18px;padding:0;border-radius:50%;border:2px solid transparent;box-sizing:border-box}
+#rn-pop .sty button.sw.on{border-color:var(--ink);box-shadow:0 0 0 1px var(--bg) inset}
+#rn-pop .sty .prev{all:initial;margin-left:auto;padding:0 4px;font:13px/1.6 Georgia,serif;color:var(--ink)}
+
+/* 对话 */
+#rn-pop .qa{all:initial;display:none;margin:0 14px;flex:1 1 auto !important;min-height:60px;overflow:auto;overscroll-behavior:contain}
+#rn-pop .qa .q1{all:initial;display:block;margin:8px 0 4px auto;width:fit-content;max-width:85%;padding:6px 10px;border-radius:12px 12px 4px 12px;background:var(--acc);color:#fff;font:13px/1.5 -apple-system,"PingFang SC",sans-serif;white-space:pre-wrap}
+#rn-pop .qa .a1{all:initial;display:block;padding:8px 11px;border-radius:12px 12px 12px 4px;background:var(--bg2);color:var(--ink);font:14px/1.7 -apple-system,"PingFang SC",sans-serif;white-space:pre-wrap}
+#rn-pop .qa .a1 b{font-weight:650}
+#rn-pop .qa .who{all:initial;display:block;margin-bottom:3px;font:11px/1.4 -apple-system,"PingFang SC",sans-serif;color:var(--mut)}
+#rn-pop .qa .err{all:initial;display:block;color:#d0573a;font:13px/1.5 -apple-system,"PingFang SC",sans-serif}
+#rn-pop .dots{all:initial;display:none;margin-left:6px}
+#rn-pop .live .dots{display:inline-flex;gap:3px;vertical-align:middle}
+#rn-pop .dots i{all:initial;width:5px;height:5px;border-radius:50%;background:var(--acc);animation:rnBounce 1.1s infinite ease-in-out}
+#rn-pop .dots i:nth-child(2){animation-delay:.15s}#rn-pop .dots i:nth-child(3){animation-delay:.3s}
+#rn-pop .caret{all:initial;display:inline-block;width:7px;height:15px;margin-left:2px;vertical-align:text-bottom;background:var(--acc);animation:rnBlink 1s steps(2) infinite}
+@keyframes rnBounce{0%,80%,100%{transform:translateY(0);opacity:.35}40%{transform:translateY(-4px);opacity:1}}
+@keyframes rnBlink{0%{opacity:1}100%{opacity:0}}
+#rn-pop .askrow{all:initial;display:flex;gap:6px;align-items:stretch;margin:8px 14px 0}
+#rn-pop .askside{all:initial;display:flex;flex-direction:column;gap:4px;justify-content:space-between}
+#rn-pop select.model{all:initial;padding:3px 4px;border:1px solid var(--line);border-radius:7px;font:11.5px -apple-system,"PingFang SC",sans-serif;color:var(--ink);background:var(--bg);cursor:pointer}
+#rn-pop textarea.askbox,#rn-pop textarea.mine{all:initial;display:block;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:7px 9px;font:13px/1.55 -apple-system,"PingFang SC",sans-serif;color:var(--ink);background:var(--bg);white-space:pre-wrap;resize:vertical}
+#rn-pop textarea.askbox{flex:1;min-height:58px;border-color:var(--acc)}
+#rn-pop textarea.mine{width:calc(100% - 28px);margin:0 14px;min-height:60px;max-height:22vh;overscroll-behavior:contain}
+#rn-pop textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-bg)}
+
+/* 状态 */
+#rn-pop .chips{all:initial;display:flex;flex-wrap:wrap;gap:6px;margin:10px 14px 0}
+#rn-pop .chips button{padding:3px 10px;font-size:12px;border:1px solid var(--line);border-radius:999px;color:var(--ink2)}
+#rn-pop .chips button.on.ask{background:#fdeedf;border-color:#f2994a;color:#b35b14}
+#rn-pop .chips button.on.solved{background:#e2f3e8;border-color:#3a9b62;color:#257346}
+#rn-pop .chips button.on.star{background:#efe6fb;border-color:#8e5cd9;color:#6a3fb5}
+#rn-pop.rn-dark .chips button.on.ask{background:#4a3220;color:#ffbd85}
+#rn-pop.rn-dark .chips button.on.solved{background:#1f3d2b;color:#8fdcae}
+#rn-pop.rn-dark .chips button.on.star{background:#35284d;color:#c9a9ff}
+
+/* 底部按钮 */
+#rn-pop .ft{all:initial;display:flex;align-items:center;gap:4px;margin-top:12px;padding:8px 10px;border-top:1px solid var(--line);background:var(--bg)}
+#rn-pop .ft .sp{all:initial;flex:1}
+#rn-pop button.pri{background:var(--acc);color:#fff}
+#rn-pop button.pri:hover{filter:brightness(.92);background:var(--acc)}
+#rn-pop button.danger{color:#c9473a}
+
+/* 悬浮气泡：半透明毛玻璃 */
+#rn-tip{display:block;max-width:420px;max-height:62vh;overflow:auto;overscroll-behavior:contain;padding:11px 15px 9px;pointer-events:auto;border-radius:16px;
+  background:rgba(255,255,255,.66) !important;border:1px solid rgba(255,255,255,.7) !important;
+  -webkit-backdrop-filter:blur(18px) saturate(170%);backdrop-filter:blur(18px) saturate(170%)}
+#rn-tip.rn-dark{background:rgba(32,35,41,.66) !important;border-color:rgba(255,255,255,.12) !important}
+#rn-tip .b{all:initial;display:block;font:500 15px/1.6 -apple-system,"PingFang SC",sans-serif;color:var(--ink);white-space:pre-wrap}
+#rn-tip .b b{font-weight:700}
+#rn-tip .f{all:initial;display:block;margin-top:6px;font:12px/1.4 -apple-system,"PingFang SC",sans-serif;color:var(--ink2)}
+
+/* 右边刻度条 */
+#rn-rail{all:initial;position:fixed;top:0;right:2px;width:12px;height:100vh;z-index:2147483645;pointer-events:none}
+#rn-rail .rn-dot{all:initial;position:absolute;right:1px;width:10px;height:8px;border-radius:3px;background:#3b6fd8;opacity:.85;cursor:pointer;pointer-events:auto;box-shadow:0 0 0 1.5px rgba(255,255,255,.9)}
+#rn-rail.rn-dark .rn-dot{box-shadow:0 0 0 1.5px rgba(0,0,0,.6)}
+#rn-rail .rn-dot.ask{background:#ee7d1c;width:12px;height:11px;right:0}#rn-rail .rn-dot.solved{background:#3a9b62}#rn-rail .rn-dot.star{background:#8e5cd9}
+#rn-rail .rn-dot:hover{opacity:1;transform:scale(1.35)}
+
+/* 提示 */
+#rn-toast{left:50%;bottom:32px;transform:translateX(-50%);padding:9px 16px;font-size:13px}
+
+/* 🎯 答题卡答案位置 */
+mark.rn-tg{background:transparent;color:inherit;border-radius:3px;padding:0;transition:background .35s ease}
+mark.rn-tg.show{background:rgba(58,155,98,.22) !important;box-shadow:0 0 0 2px rgba(58,155,98,.25)}
+.rn-tgico{all:initial;display:inline-block;font-size:12px;line-height:1;vertical-align:super;margin:0 3px 0 1px;cursor:help;user-select:none}
+#rn-rail .rn-dot.target{width:8px;height:8px;border-radius:50%;background:#fff;box-shadow:0 0 0 2.5px #3a9b62;right:2px}
+
+/* 📍 读前导航标签 */
+.rn-guide{all:initial;display:inline-block;margin:0 6px 4px 0;padding:1px 8px;border-radius:999px;background:#e8effd;color:#2f5fc4;font:600 11.5px/1.7 -apple-system,"PingFang SC",sans-serif;vertical-align:middle;user-select:none}
+#rn-rail .rn-dot.guide{width:8px;height:8px;right:2px;border-radius:2px;transform:rotate(45deg);background:#6b9bff;opacity:.7}
+/* 找到原句时闪一下 */
+.rn-flash{position:fixed;z-index:2147483646;pointer-events:none;border-radius:4px;box-shadow:0 0 0 3px #3b6fd8;background:rgba(59,111,216,.12);animation:rnFlash 2.6s ease-out forwards}
+@keyframes rnFlash{0%,60%{opacity:1}100%{opacity:0}}
+#rn-pop select.effort,#rn-pop select.ctxm{all:initial;padding:3px 4px;border:1px solid var(--line);border-radius:7px;font:11.5px -apple-system,"PingFang SC",sans-serif;color:var(--ink);background:var(--bg);cursor:pointer}
+
+/* 编辑框：右下角可拉伸、标题栏可拖动 */
+#rn-pop{min-width:320px;min-height:240px;max-width:96vw}
+#rn-pop .hd{cursor:move}
+/* 回答里的表格 / 小标题 / 代码 */
+#rn-pop .qa table.md,#rn-tip table.md{all:initial;display:table;border-collapse:collapse;margin:6px 0;font:12.5px/1.5 -apple-system,"PingFang SC",sans-serif;color:var(--ink);white-space:normal}
+#rn-pop .qa table.md th,#rn-pop .qa table.md td,#rn-tip table.md th,#rn-tip table.md td{all:initial;display:table-cell;padding:4px 7px;border:1px solid var(--line);font:12.5px/1.5 -apple-system,"PingFang SC",sans-serif;color:var(--ink);vertical-align:top;white-space:normal}
+#rn-pop .qa table.md th,#rn-tip table.md th{font-weight:650;background:var(--bg3)}
+#rn-pop .qa table.md tr,#rn-tip table.md tr{display:table-row}
+#rn-pop .qa table.md thead{display:table-header-group}#rn-pop .qa table.md tbody{display:table-row-group}
+#rn-pop .qa .mdh,#rn-tip .mdh{all:initial;display:block;margin:6px 0 2px;font:650 14px/1.5 -apple-system,"PingFang SC",sans-serif;color:var(--ink)}
+#rn-pop .qa hr.md{all:initial;display:block;margin:6px 0;border-top:1px solid var(--line)}
+#rn-pop .qa code,#rn-tip code{font:12px ui-monospace,Menlo,monospace;background:var(--bg3);padding:0 4px;border-radius:4px}
+
+/* 拉伸边：左、右、下三条边 + 两个下角（右下角有看得见的拖拽点） */
+#rn-pop .rs{all:initial;position:absolute;z-index:5}
+#rn-pop .rs-l{left:-4px;top:12px;bottom:12px;width:9px;cursor:ew-resize}
+#rn-pop .rs-r{right:-4px;top:12px;bottom:12px;width:9px;cursor:ew-resize}
+#rn-pop .rs-b{left:12px;right:12px;bottom:-4px;height:9px;cursor:ns-resize}
+#rn-pop .rs-bl{left:-4px;bottom:-4px;width:16px;height:16px;cursor:nesw-resize}
+#rn-pop .rs-br{right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;
+  background:linear-gradient(135deg,transparent 0 45%,var(--mut) 45% 52%,transparent 52% 64%,var(--mut) 64% 71%,transparent 71% 83%,var(--mut) 83% 90%,transparent 90%);opacity:.7;border-bottom-right-radius:12px}
+#rn-pop .rs-br:hover{opacity:1}
+#rn-pop{position:fixed}
+/* 编辑框半透明（毛玻璃），文字仍然清楚 */
+#rn-pop{background:rgba(255,255,255,.84) !important;-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%)}
+#rn-pop.rn-dark{background:rgba(31,34,39,.84) !important}
+#rn-pop .hd,#rn-pop .ft{background:transparent !important}
+#rn-pop .q,#rn-pop .qa .a1,#rn-pop .sty{background:rgba(127,127,127,.10) !important}
+#rn-pop textarea.askbox,#rn-pop textarea.mine,#rn-pop select.model,#rn-pop select.effort{background:rgba(255,255,255,.55) !important}
+#rn-pop.rn-dark textarea.askbox,#rn-pop.rn-dark textarea.mine,#rn-pop.rn-dark select.model,#rn-pop.rn-dark select.effort{background:rgba(0,0,0,.25) !important}
+#rn-pop .askside button[data-a="explain"]{border:1px solid var(--acc);color:var(--acc);font-size:12px;padding:3px 6px;text-align:center}
+/* 小圆标半透明，不挡字；鼠标放上去才变实 */
+.rn-ico{opacity:.55;transition:opacity .15s,transform .15s}
+.rn-ico:hover{opacity:1}
+.rn-tgico{opacity:.6}.rn-tgico:hover{opacity:1}
+#rn-pop.rn-dark select.ctxm{background:rgba(0,0,0,.25) !important}
+#rn-pop select.ctxm{background:rgba(255,255,255,.55) !important;max-width:150px}
+#rn-tip .f a.open{all:initial;margin-left:8px;cursor:pointer;font:600 12px/1.4 -apple-system,"PingFang SC",sans-serif;color:var(--acc)}
+#rn-tip .f a.open:hover{text-decoration:underline}
+/* 卡片底部那行（类型、时间、打开看全部）固定在卡片底部，不用滚动就能点到 */
+#rn-tip{padding-bottom:0}
+#rn-tip .f{position:sticky;bottom:0;margin:6px -15px 0;padding:6px 15px 8px;background:rgba(255,255,255,.92);border-top:1px solid rgba(0,0,0,.06);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+#rn-tip.rn-dark .f{background:rgba(32,35,41,.92);border-top-color:rgba(255,255,255,.08)}
+
+/* ===== v1.5 小条：第一行是笔（颜色 + 线型），第二行是动作 ===== */
+#rn-bar .r1,#rn-bar .r2{all:initial;display:flex;align-items:center;gap:3px}
+#rn-bar .r1{padding:1px 2px 5px;border-bottom:1px solid var(--line);margin-bottom:4px}
+#rn-bar .lab{all:initial;font:600 11.5px/1 -apple-system,"PingFang SC",sans-serif;color:var(--mut);margin-right:3px}
+#rn-bar button.sw{width:19px;height:19px;padding:0;border-radius:50%;border:2px solid rgba(255,255,255,.9);box-shadow:0 0 0 1px rgba(0,0,0,.15);box-sizing:border-box}
+#rn-bar button.sw:hover{transform:scale(1.18);background-blend-mode:normal}
+#rn-bar .sep{all:initial;width:1px;height:16px;background:var(--line);margin:0 4px}
+#rn-bar button.pt{padding:2px 7px;font-size:12px;border:1px solid transparent;color:var(--ink2)}
+#rn-bar button.pt.on{border-color:var(--acc);background:var(--acc-bg);color:var(--acc)}
+/* 带按钮的提示 */
+#rn-toast button{all:initial;margin-left:10px;padding:2px 9px;border-radius:999px;background:var(--acc);color:#fff;cursor:pointer;font:12.5px -apple-system,"PingFang SC",sans-serif}
+
+/* ===== v1.5 编辑框层次：小节标题 + 分隔线；对话单独成块、按轮次分开 ===== */
+#rn-pop .sec{display:flex !important;align-items:center;gap:6px;margin:14px 14px 6px !important;font:650 12px/1.3 -apple-system,"PingFang SC",sans-serif !important;color:var(--ink2) !important;letter-spacing:.3px}
+#rn-pop .sec::after{content:"";flex:1;height:1px;background:var(--line)}
+#rn-pop .sec .cnt{all:initial;font:12px -apple-system,"PingFang SC",sans-serif;color:var(--mut)}
+#rn-pop .qa{border:1px solid var(--line) !important;border-radius:12px !important;padding:6px !important;background:rgba(59,111,216,.05) !important}
+#rn-pop.rn-dark .qa{background:rgba(107,155,255,.07) !important}
+#rn-pop .qa .round{all:initial;display:block;margin:4px 0 10px;padding:8px 8px 10px;border-radius:10px;background:var(--bg);border:1px solid var(--line)}
+#rn-pop.rn-dark .qa .round{background:rgba(0,0,0,.18)}
+#rn-pop .qa .round:last-child{margin-bottom:2px}
+#rn-pop .qa .round.live{border-color:var(--acc);border-style:dashed}
+#rn-pop .qa .rh{all:initial;display:block;margin:0 0 6px;font:600 11px/1.3 -apple-system,"PingFang SC",sans-serif;color:var(--mut)}
+#rn-pop .qa .round .q1{margin:0 0 6px auto}
+#rn-pop .qa .round .a1{background:transparent !important;padding:2px 2px 0}
+/* 标签 */
+#rn-pop .tagrow{all:initial;display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:0 14px}
+#rn-pop .tagrow .none{all:initial;font:12px -apple-system,"PingFang SC",sans-serif;color:var(--mut);padding:2px 4px}
+#rn-pop .tagrow button.tag{padding:2px 9px;font-size:12px;border:1px dashed var(--line);border-radius:999px;color:var(--ink2)}
+#rn-pop .tagrow button.tag.on{border:1px solid #8e5cd9;background:rgba(142,92,217,.12);color:#6a3fb5}
+#rn-pop.rn-dark .tagrow button.tag.on{color:#c9a9ff}
+#rn-pop .tagrow input.newtag{all:initial;width:120px;padding:2px 8px;border:1px solid var(--line);border-radius:999px;font:12px -apple-system,"PingFang SC",sans-serif;color:var(--ink);background:rgba(127,127,127,.06)}
+#rn-pop .tagrow input.newtag:focus{border-color:var(--acc)}
+
+/* ===== v1.5.2 编辑框不再挤扁：只有对话区伸缩，其余都保持原高 ===== */
+#rn-pop>.hd,#rn-pop>.q,#rn-pop>.sty,#rn-pop>.sec,#rn-pop>.askrow,#rn-pop>textarea.mine,#rn-pop>.tagrow,#rn-pop>.chips,#rn-pop>.ft{flex:0 0 auto !important}
+#rn-pop>.qa{flex:1 1 auto !important;min-height:90px !important}
+#rn-pop .q{min-height:36px}
+/* 提问区：输入框在上，模型 / 强度 / 上下文 / 一键解释 / 发送 一排在下 */
+#rn-pop .askrow{display:block !important;margin:8px 14px 0 !important}
+#rn-pop textarea.askbox{display:block;width:100%;min-height:44px !important;max-height:30vh}
+#rn-pop .askbar{all:initial;display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:5px}
+#rn-pop .askbar select{flex:0 1 auto;max-width:130px}
+#rn-pop .askbar button[data-a="explain"]{border:1px solid var(--acc);color:var(--acc);font-size:12px;padding:3px 8px}
+#rn-pop .askbar button.pri{margin-left:auto;padding:4px 14px}
+/* 段首共用的 🎯：几道题合一个，右上角小数字 */
+.rn-tgico.para{position:relative;vertical-align:baseline;margin-right:4px}
+.rn-tgico.para[data-n]::after{content:attr(data-n);position:absolute;right:-7px;top:-6px;min-width:12px;height:12px;padding:0 2px;border-radius:6px;background:#3a9b62;color:#fff;font:bold 8.5px/12px -apple-system,sans-serif;text-align:center}
+
+/* ===== 标题栏固定在顶、按钮栏固定在底，中间整块滚动：窗口再矮也看得到保存 / 删除 ===== */
+#rn-pop>.mid{all:initial;display:block;flex:1 1 auto !important;min-height:0;overflow:auto;overscroll-behavior:contain;padding-bottom:8px}
+#rn-pop>.hd,#rn-pop>.ft{flex:0 0 auto !important}
+#rn-pop .mid .qa{max-height:48vh;min-height:0 !important}
+
+/* 正在等 Claude 回答：小圆标转圈 */
+.rn-ico.thinking{opacity:1 !important;box-shadow:0 0 0 2px rgba(59,111,216,.35) !important;animation:rnSpin 1.2s linear infinite}
+.rn-ico.thinking::after{content:"";position:absolute}
+@keyframes rnSpin{to{transform:rotate(360deg)}}
+/* 悬浮卡片：模糊减轻，出现更跟手 */
+#rn-tip{-webkit-backdrop-filter:blur(8px) !important;backdrop-filter:blur(8px) !important;background:rgba(255,255,255,.86) !important}
+#rn-tip.rn-dark{background:rgba(32,35,41,.88) !important}
+
+/* 钉住的卡片：可拖动、可拉伸 */
+.rn-pin{all:initial;position:fixed;z-index:2147483646;display:flex;flex-direction:column;box-sizing:border-box;border-radius:14px;overflow:hidden;
+  background:rgba(255,255,255,.92);border:1px solid #d9dde3;box-shadow:0 14px 40px rgba(0,0,0,.22);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  font:13px/1.5 -apple-system,"PingFang SC",sans-serif;color:#16191d;--ink:#16191d;--ink2:#4b5260;--mut:#8a909c;--line:#e3e6ea;--bg3:#eceef2;--acc:#3b6fd8}
+.rn-pin.rn-dark{background:rgba(32,35,41,.92);border-color:#353a42;color:#eef0f3;--ink:#eef0f3;--ink2:#b9bfc8;--mut:#858c97;--line:#353a42;--bg3:#30353c;--acc:#6b9bff}
+.rn-pin .pbar{all:initial;flex:none;display:flex;align-items:center;gap:6px;padding:5px 8px 5px 12px;cursor:move;border-bottom:1px solid var(--line);font:600 11.5px -apple-system,"PingFang SC",sans-serif;color:var(--mut);user-select:none}
+.rn-pin .pbar span{all:initial;flex:1;font:inherit;color:inherit}
+.rn-pin .px{all:initial;cursor:pointer;padding:1px 7px;border-radius:6px;color:var(--mut);font:14px -apple-system,sans-serif}
+.rn-pin .px:hover{background:var(--bg3)}
+.rn-pin .pbody{all:initial;display:block;flex:1;overflow:auto;padding:10px 14px;overscroll-behavior:contain}
+.rn-pin .pbody .b{all:initial;display:block;font:500 15px/1.6 -apple-system,"PingFang SC",sans-serif;color:var(--ink);white-space:pre-wrap}
+.rn-pin .pbody .b b{font-weight:700}
+.rn-pin .pbody .f{all:initial;display:block;margin-top:8px;font:12px/1.4 -apple-system,"PingFang SC",sans-serif;color:var(--ink2)}
+.rn-pin .pbody .f a.open{all:initial;margin-left:8px;cursor:pointer;font:600 12px -apple-system,"PingFang SC",sans-serif;color:var(--acc)}
+.rn-pin .pbody table.md{border-collapse:collapse;margin:6px 0;font-size:12.5px}.rn-pin .pbody table.md th,.rn-pin .pbody table.md td{border:1px solid var(--line);padding:3px 6px}
+.rn-pin .pres{all:initial;position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;
+  background:linear-gradient(135deg,transparent 0 45%,var(--mut) 45% 52%,transparent 52% 64%,var(--mut) 64% 71%,transparent 71% 83%,var(--mut) 83% 90%,transparent 90%);opacity:.7}
+#rn-tip{cursor:pointer}
+
+/* 悬浮卡片：字号正常大小；多轮问答分开 */
+#rn-tip .b,.rn-pin .pbody .b{font:400 13.5px/1.6 -apple-system,"PingFang SC",sans-serif !important}
+#rn-tip .b b,.rn-pin .pbody .b b{font-weight:650}
+#rn-tip .tn,.rn-pin .tn{all:initial;display:block;margin-bottom:8px;padding:6px 9px;border-radius:8px;background:rgba(127,127,127,.10);font:13px/1.55 -apple-system,"PingFang SC",sans-serif;color:var(--ink);white-space:pre-wrap}
+#rn-tip .tr,.rn-pin .tr{all:initial;display:block;margin:0 0 10px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+#rn-tip .tr:last-child,.rn-pin .tr:last-child{border-bottom:0;margin-bottom:0}
+#rn-tip .tq,.rn-pin .tq{all:initial;display:block;margin-bottom:3px;font:600 12px/1.45 -apple-system,"PingFang SC",sans-serif;color:var(--acc,#3b6fd8)}
+#rn-tip .ta,.rn-pin .ta{all:initial;display:block;font:13.5px/1.6 -apple-system,"PingFang SC",sans-serif;color:var(--ink);white-space:pre-wrap}
+#rn-tip .ta b,.rn-pin .ta b{font-weight:650}
+#rn-tip .ta .mdh,.rn-pin .ta .mdh{font-size:13.5px}
+
+/* 10-06：🌐 对照翻译 */
+.rn-tr{color:#4b5563;font-size:.94em;line-height:1.7;margin:.25em 0 .9em;padding-left:9px;border-left:3px solid rgba(59,111,216,.35)}
+html.rn-tr-off .rn-tr{display:none}
+@media (prefers-color-scheme:dark){.rn-tr{color:#b6bcc6}}
